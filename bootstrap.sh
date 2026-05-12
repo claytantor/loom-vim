@@ -108,7 +108,7 @@ install_packages() {
     debian)
       $SUDO apt-get update -y
       $SUDO apt-get install -y --no-install-recommends \
-        git curl ca-certificates ripgrep fd-find build-essential unzip
+        git curl ca-certificates ripgrep fd-find build-essential unzip fontconfig
       # Debian/Ubuntu ships `fd` as `fdfind`; provide an `fd` shim
       if ! command -v fd &>/dev/null && command -v fdfind &>/dev/null; then
         $SUDO ln -sf "$(command -v fdfind)" /usr/local/bin/fd
@@ -120,17 +120,17 @@ install_packages() {
       elif command -v yum &>/dev/null; then pm=yum
       else error "No dnf/yum found"; exit 1
       fi
-      $SUDO "$pm" install -y git curl ca-certificates ripgrep fd-find make gcc unzip
+      $SUDO "$pm" install -y git curl ca-certificates ripgrep fd-find make gcc unzip fontconfig
       ;;
     arch)
-      $SUDO pacman -Sy --noconfirm --needed git curl ca-certificates ripgrep fd make gcc unzip
+      $SUDO pacman -Sy --noconfirm --needed git curl ca-certificates ripgrep fd make gcc unzip fontconfig
       ;;
     suse)
       $SUDO zypper --non-interactive install --no-recommends \
-        git curl ca-certificates ripgrep fd make gcc unzip
+        git curl ca-certificates ripgrep fd make gcc unzip fontconfig
       ;;
     alpine)
-      $SUDO apk add --no-cache git curl ca-certificates ripgrep fd make gcc musl-dev bash unzip
+      $SUDO apk add --no-cache git curl ca-certificates ripgrep fd make gcc musl-dev bash unzip fontconfig
       ;;
     *)
       error "Unsupported distro family. Install manually: git curl ripgrep fd make gcc"
@@ -204,14 +204,29 @@ NERD_FONT_VERSION="v3.4.0"
 NERD_FONT_FAMILY="JetBrainsMono"
 NERD_FONT_DIR="$HOME/.local/share/fonts/NerdFonts"
 
+# Authoritative check: does fontconfig resolve "<family> Nerd Font" to a file
+# whose path actually contains that family name? `fc-match` always returns
+# *something* (fontconfig's fallback chain), so we must verify the result
+# really is the font we wanted, not a substitute.
+nerd_font_resolves() {
+  local family="$1"
+  command -v fc-match &>/dev/null || return 1
+  local match
+  match=$(fc-match -f '%{file}\n' "${family} Nerd Font" 2>/dev/null) || return 1
+  [[ -n "$match" && "$match" == *"${family}"* && "$match" == *"NerdFont"* ]]
+}
+
 install_nerd_font() {
-  if fc-list 2>/dev/null | grep -qi 'nerd font'; then
-    success "Nerd Font already installed ($(fc-list | grep -i 'nerd font' | wc -l) variants)"
+  if nerd_font_resolves "$NERD_FONT_FAMILY"; then
+    success "${NERD_FONT_FAMILY} Nerd Font already installed and resolvable"
     return 0
   fi
+
+  # If fontconfig wasn't installed by install_packages (older distros / minimal
+  # images), fall back gracefully — the editor still works, just without icons.
   if ! command -v fc-cache &>/dev/null; then
     warn "fontconfig (fc-cache) not found — skipping Nerd Font install"
-    warn "Install fontconfig then re-run bootstrap, or grab a Nerd Font manually:"
+    warn "Install fontconfig and re-run bootstrap, or get a Nerd Font manually:"
     warn "  https://www.nerdfonts.com/font-downloads"
     return 0
   fi
@@ -230,14 +245,31 @@ install_nerd_font() {
     return 0
   fi
   mkdir -p "$NERD_FONT_DIR/$NERD_FONT_FAMILY"
-  unzip -oq "$tmp/font.zip" -d "$NERD_FONT_DIR/$NERD_FONT_FAMILY"
+  if ! unzip -oq "$tmp/font.zip" -d "$NERD_FONT_DIR/$NERD_FONT_FAMILY"; then
+    warn "Failed to unzip Nerd Font archive — leaving system untouched"
+    rm -rf "$tmp"
+    return 0
+  fi
   rm -rf "$tmp"
+
+  # Rebuild the user's font cache. `fc-cache -f` without args also works, but
+  # passing the directory is faster and avoids touching the system cache.
   fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
-  success "Nerd Font installed: $(fc-list | grep -ci 'jetbrainsmono nerd') variants"
+
+  # Authoritative verification: refuse to claim success unless fc-match agrees.
+  if nerd_font_resolves "$NERD_FONT_FAMILY"; then
+    local resolved
+    resolved=$(fc-match -f '%{file}\n' "${NERD_FONT_FAMILY} Nerd Font")
+    success "Nerd Font installed → resolves to: ${resolved}"
+  else
+    warn "Nerd Font files written to ${NERD_FONT_DIR} but fc-match doesn't resolve them yet."
+    warn "Try: fc-cache -fv ~/.local/share/fonts   then   fc-match \"${NERD_FONT_FAMILY} Nerd Font\""
+  fi
 
   echo ""
-  printf "${YELLOW}[!]${NC}  Set your terminal emulator's font to a 'Nerd Font' variant\n"
-  printf "${YELLOW}[!]${NC}  (e.g. 'JetBrainsMono Nerd Font') for icons to render correctly.\n"
+  printf "${YELLOW}[!]${NC}  Set your terminal emulator's font to '${NERD_FONT_FAMILY} Nerd Font'\n"
+  printf "${YELLOW}[!]${NC}  for nvim-tree/telescope/lualine icons to render. Fontconfig\n"
+  printf "${YELLOW}[!]${NC}  knowing about the font is NOT the same as the terminal using it.\n"
   echo ""
 }
 
