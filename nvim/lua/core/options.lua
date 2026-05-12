@@ -20,8 +20,8 @@ opt.updatetime = 50
 opt.colorcolumn = "120"
 opt.splitbelow = true
 opt.splitright = true
-opt.mouse = "a"
 if vim.env.SSH_TTY ~= nil or vim.env.SSH_CONNECTION ~= nil or vim.env.DISPLAY == nil or vim.env.DISPLAY == "" then
+  opt.mouse = ""
   vim.g.clipboard = {
     name = 'OSC 52',
     copy = {
@@ -34,6 +34,7 @@ if vim.env.SSH_TTY ~= nil or vim.env.SSH_CONNECTION ~= nil or vim.env.DISPLAY ==
     },
   }
 else
+  opt.mouse = "a"
   opt.clipboard = "unnamedplus"
 end
 opt.ignorecase = true

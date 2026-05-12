@@ -4,6 +4,18 @@ return {
     dependencies = { "nvim-tree/nvim-web-devicons" },
     keys = {
       { "<Leader>e", "<Cmd>NvimTreeToggle<CR>", desc = "Toggle file tree" },
+      { "<Leader>ee", function()
+        require("nvim-tree.api").tree.open()
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+          local buf = vim.api.nvim_win_get_buf(win)
+          if vim.api.nvim_buf_get_name(buf) == ""
+            and vim.api.nvim_buf_line_count(buf) == 1
+            and vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == ""
+            and vim.bo[buf].filetype ~= "NvimTree" then
+            pcall(vim.api.nvim_win_close, win, false)
+          end
+        end
+      end, desc = "Open file tree (close empty buffers)" },
       { "<Leader>ef", "<Cmd>NvimTreeFocus<CR>", desc = "Focus file tree" },
       { "<Leader>er", "<Cmd>NvimTreeRefresh<CR>", desc = "Refresh file tree" },
     },

@@ -59,9 +59,22 @@ This checks font files, fontconfig registration, and terminal configuration. The
 | Binding | Action |
 |---------|--------|
 | `<Space>e` | Toggle file tree (nvim-tree) |
+| `<Space>ee` | Open file tree, close empty buffer |
 | `<Space>ef` | Focus file tree |
 | `<Space>er` | Refresh file tree |
 | `<Space>?` | Show all keymaps (which-key) |
+
+### Opening Files in nano (SSH / no tmux)
+
+When connected over SSH, copy-paste works without tmux by opening files in **nano** directly from the file tree. nano uses the terminal's native clipboard (`Ctrl+Shift+C` / `Ctrl+Shift+V` in GNOME Terminal), bypassing Neovim's clipboard entirely.
+
+With the file tree focused, press `n` on any file to open it in nano in a split window to the right:
+
+| Binding | Action |
+|---------|--------|
+| `n` *(in file tree)* | Open selected file in nano |
+| `Ctrl+X` | Exit nano (closes the split) |
+| `Ctrl+\` then `Ctrl+n` | Return to Neovim normal mode from any terminal split |
 
 ### Telescope / Find
 
