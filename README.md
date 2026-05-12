@@ -54,6 +54,8 @@ This checks font files, fontconfig registration, and terminal configuration. The
 
 **Leader key:** `<Space>`
 
+> **Tip:** Type `:cheat` inside neovim to open a scrollable cheat sheet of all key bindings. Press `q` or `Esc` to close it.
+
 ### Core Navigation
 
 | Binding | Action |
