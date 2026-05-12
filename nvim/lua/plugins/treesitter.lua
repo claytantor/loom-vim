@@ -25,19 +25,18 @@ if ts_branch == "master" then
     })
   end
 else
-  -- main branch: use vim.treesitter directly; parsers auto-install on first open
+  -- main branch: configs module is gone; install parsers via the new API.
+  -- Highlighting is enabled per-buffer by the FileType autocmd (vim.treesitter.start).
   config_fn = function()
-    local parser_list = {
-      "lua", "python", "javascript", "typescript", "tsx",
-      "bash", "json", "yaml", "toml",
-      "markdown", "markdown_inline",
-      "html", "css", "dockerfile", "sql", "rust",
-    }
-    -- Install parsers synchronously on first run
-    for _, lang in ipairs(parser_list) do
-      pcall(vim.treesitter.language.add, lang)
+    local ok, ts = pcall(require, "nvim-treesitter")
+    if ok and type(ts.install) == "function" then
+      ts.install({
+        "lua", "python", "javascript", "typescript", "tsx",
+        "bash", "json", "yaml", "toml",
+        "markdown", "markdown_inline",
+        "html", "css", "dockerfile", "sql", "rust",
+      })
     end
-    vim.treesitter.start()
   end
 end
 

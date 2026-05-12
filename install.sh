@@ -157,6 +157,9 @@ backup_config() {
 # ─── 5. Write Config Files ──────────────────────────────────────────────────
 write_configs() {
   info "Creating directory structure"
+  # Wipe managed source dirs so stale files from prior installs (e.g. a leftover
+  # lua/plugins/init.lua that returns nil) can't break `require("lazy").setup`.
+  run rm -rf "$NVIM_CONFIG/lua/core" "$NVIM_CONFIG/lua/plugins"
   run mkdir -p "$NVIM_CONFIG/lua/core"
   run mkdir -p "$NVIM_CONFIG/lua/plugins"
 
@@ -181,7 +184,7 @@ vim.g.maplocalleader = " "
 require("core.options")
 require("core.keymaps")
 require("core.autocmds")
-require("lazy").setup({ import = "plugins" })
+require("lazy").setup("plugins")
 LUAEOF
 
   # --- lua/core/options.lua ---
@@ -307,19 +310,18 @@ if ts_branch == "master" then
     })
   end
 else
-  -- main branch: use vim.treesitter directly; parsers auto-install on first open
+  -- main branch: configs module is gone; install parsers via the new API.
+  -- Highlighting is enabled per-buffer by the FileType autocmd (vim.treesitter.start).
   config_fn = function()
-    local parser_list = {
-      "lua", "python", "javascript", "typescript", "tsx",
-      "bash", "json", "yaml", "toml",
-      "markdown", "markdown_inline",
-      "html", "css", "dockerfile", "sql", "rust",
-    }
-    -- Install parsers synchronously on first run
-    for _, lang in ipairs(parser_list) do
-      pcall(vim.treesitter.language.add, lang)
+    local ok, ts = pcall(require, "nvim-treesitter")
+    if ok and type(ts.install) == "function" then
+      ts.install({
+        "lua", "python", "javascript", "typescript", "tsx",
+        "bash", "json", "yaml", "toml",
+        "markdown", "markdown_inline",
+        "html", "css", "dockerfile", "sql", "rust",
+      })
     end
-    vim.treesitter.start()
   end
 end
 
@@ -481,6 +483,30 @@ LUAEOF
   success "Config files written to $NVIM_CONFIG"
 }
 
+# Run a headless nvim command, detecting errors by scanning output (since
+# headless nvim exits 0 even when commands inside it error out).
+# Args: <log-path> <pattern> <cmd> [<cmd>...]
+#   <pattern> is the extended regex of failure markers; if any line matches,
+#   run_headless returns non-zero.
+run_headless() {
+  local log="$1"; shift
+  local pattern="$1"; shift
+  local cmd_args=()
+  for c in "$@"; do cmd_args+=("-c" "$c"); done
+  cmd_args+=("-c" "qa!")
+  nvim --headless "${cmd_args[@]}" >"$log" 2>&1 || true
+  if grep -qE "$pattern" "$log"; then
+    return 1
+  fi
+  return 0
+}
+
+# Failure markers. Plugin sync (`Lazy! sync`) intentionally excludes the
+# nvim-treesitter per-parser `] error:` lines — those are a downstream symptom
+# of a missing `tree-sitter` CLI and are surfaced by install_parsers, not here.
+RX_FATAL='(^E[0-9]+:|^Error |Failed to|stack traceback)'
+RX_PARSER='(^E[0-9]+:|^Error |Failed to|stack traceback|\] error:)'
+
 # ─── 6. Bootstrap Lazy.nvim Plugins ─────────────────────────────────────────
 bootstrap_lazy() {
   info "Installing plugins (headless Lazy sync)..."
@@ -488,40 +514,72 @@ bootstrap_lazy() {
     printf "${BOLD}[DRY]${NC}   nvim --headless '+Lazy! sync' +qa\n"
     return 0
   fi
-  if ! nvim --headless "+Lazy! sync" +qa; then
-    error "Plugin sync failed — run 'nvim +Lazy' interactively to inspect"
+  local log=/tmp/loom-lazy-sync.log
+  if run_headless "$log" "$RX_FATAL" "Lazy! sync"; then
+    success "Plugin sync complete"
+  else
+    error "Plugin sync failed — see $log"
+    error "Inspect interactively with: nvim +Lazy"
     exit 1
   fi
-  success "Plugin sync complete"
 }
 
 # ─── 7. Install Treesitter Parsers ──────────────────────────────────────────
 install_parsers() {
-  info "Installing treesitter parsers (headless)..."
+  info "Installing treesitter parsers (synchronous)..."
   if $DRY_RUN; then
-    printf "${BOLD}[DRY]${NC}   nvim --headless '+TSUpdateSync' +qa\n"
+    printf "${BOLD}[DRY]${NC}   nvim --headless +<sync parser install> +qa\n"
     return 0
   fi
-  if nvim --headless "+TSUpdateSync" +qa 2>/dev/null; then
+
+  # On the `main` branch (Neovim 0.12+), :TSUpdate is async and returns before
+  # parsers finish compiling — we must use the install():wait() Lua API.
+  # On `master` (Neovim 0.11), :TSUpdateSync is the synchronous variant.
+  local lua_script=/tmp/loom-ts-install.lua
+  cat >"$lua_script" <<'LUAEOF'
+local langs = {
+  "lua", "python", "javascript", "typescript", "tsx",
+  "bash", "json", "yaml", "toml",
+  "markdown", "markdown_inline",
+  "html", "css", "dockerfile", "sql", "rust",
+}
+local ok, ts = pcall(require, "nvim-treesitter")
+if ok and type(ts.install) == "function" then
+  local task = ts.install(langs)
+  if task and type(task.wait) == "function" then
+    pcall(task.wait, task, 180000)
+  end
+else
+  pcall(vim.cmd, "TSUpdateSync")
+end
+LUAEOF
+
+  local log=/tmp/loom-tsupdate.log
+  if run_headless "$log" "$RX_PARSER" "luafile $lua_script"; then
     success "Treesitter parsers installed"
   else
-    warn "TSUpdateSync failed (non-fatal) — parsers will auto-install on first file open"
-    warn "Run 'nvim +TSUpdateSync' manually to inspect"
+    warn "Treesitter parser install reported issues — see $log"
+    if grep -qE "ENOENT.*tree-sitter|tree-sitter.*not found" "$log" 2>/dev/null; then
+      warn "Root cause: \`tree-sitter\` CLI is missing or too old (need >= 0.26.1)."
+      warn "Install via bootstrap.sh, or grab the binary from:"
+      warn "  https://github.com/tree-sitter/tree-sitter/releases/latest"
+    fi
+    warn "Editor will work; treesitter highlighting kicks in once parsers compile."
   fi
 }
 
 # ─── 7b. Verify Install ─────────────────────────────────────────────────────
 verify_install() {
-  info "Verifying install (headless checkhealth)..."
+  info "Verifying install (config loads cleanly)..."
   if $DRY_RUN; then
-    printf "${BOLD}[DRY]${NC}   nvim --headless '+checkhealth' +qa\n"
+    printf "${BOLD}[DRY]${NC}   nvim --headless +qa\n"
     return 0
   fi
-  local log=/tmp/loom-checkhealth.log
-  if nvim --headless "+checkhealth" "+qa" >"$log" 2>&1; then
-    success "checkhealth passed (log: $log)"
+  local log=/tmp/loom-verify.log
+  if run_headless "$log" "$RX_FATAL" "echo 'loom-vim ready'"; then
+    success "Config loads cleanly"
   else
-    warn "checkhealth reported issues — review: $log"
+    warn "Startup produced errors — review: $log"
   fi
 }
 
