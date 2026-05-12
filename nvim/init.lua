@@ -17,4 +17,5 @@ vim.g.maplocalleader = " "
 require("core.options")
 require("core.keymaps")
 require("core.autocmds")
+require("core.cheat")
 require("lazy").setup("plugins")

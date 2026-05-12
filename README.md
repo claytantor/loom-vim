@@ -64,6 +64,16 @@ This checks font files, fontconfig registration, and terminal configuration. The
 | `<Space>er` | Refresh file tree |
 | `<Space>?` | Show all keymaps (which-key) |
 
+### SSH Behavior
+
+When connected over SSH (or when `$DISPLAY` is unset), loom-vim automatically adjusts two settings:
+
+**Mouse is disabled** — neovim stops capturing mouse events, so GNOME Terminal's native click-drag selection works exactly as it does with naked `vi` or `nano`. Select text by clicking and dragging, then copy with `Ctrl+Shift+C` or paste with middle-click. No tmux required.
+
+**Clipboard uses OSC 52** — yanking in neovim (`"+y`) tunnels the clipboard through the terminal escape sequence directly to your local machine's clipboard, without needing `xclip`, `xsel`, or X11 forwarding.
+
+Locally (with `$DISPLAY` set), mouse support and `xclip`/`xsel` clipboard are restored automatically.
+
 ### Opening Files in nano (SSH / no tmux)
 
 When connected over SSH, copy-paste works without tmux by opening files in **nano** directly from the file tree. nano uses the terminal's native clipboard (`Ctrl+Shift+C` / `Ctrl+Shift+V` in GNOME Terminal), bypassing Neovim's clipboard entirely.
