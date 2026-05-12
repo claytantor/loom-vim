@@ -17,7 +17,7 @@ return {
             vim.cmd('split | terminal vi ' .. vim.fn.shellescape(node.absolute_path))
           end
         end, { buffer = bufnr, noremap = true, silent = true, desc = 'Open in vi' })
-        vim.keymap.set('n', '<Leader>na', function()
+        vim.keymap.set('n', 'n', function()
           local node = api.tree.get_node_under_cursor()
           if node and node.type == 'file' then
             vim.cmd('split | terminal nano ' .. vim.fn.shellescape(node.absolute_path))
