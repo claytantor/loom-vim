@@ -22,6 +22,11 @@ warn() {
 }
 
 NF="JetBrainsMono Nerd Font"
+# Terminals must use the "Mono" suffix variant — the proportional variant
+# triggers per-codepoint fontconfig substitution that produces tofu/boxes
+# for some private-use glyphs even though the glyph exists in the font.
+NF_TERM="${NF} Mono"
+BOOTSTRAP_URL="https://raw.githubusercontent.com/claytantor/loom-vim/main/bootstrap.sh"
 
 echo ""
 echo "Nerd Font Verification"
@@ -37,9 +42,13 @@ if [ -n "$font_files" ]; then
   check "Nerd Font .ttf files found ($count — $family)" "ok"
 else
   check "Nerd Font .ttf files found" "fail"
-  echo "    Install with: brew install --cask font-jetbrains-mono-nerd-font"
-  echo "    Or:           mkdir -p ~/.local/share/fonts && cd ~/.local/share/fonts"
-  echo "                  curl -fLO https://github.com/ryanoasis/nerd-fonts/raw/master/patchedFonts/JetBrainsMono/JetBrainsMonoNerdFont-Regular.ttf"
+  echo "    Easiest fix (Linux):  bash <(curl -fsSL ${BOOTSTRAP_URL})"
+  echo "    Manual (any OS):"
+  echo "      mkdir -p ~/.local/share/fonts/NerdFonts/JetBrainsMono && cd /tmp"
+  echo "      curl -fLO https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.zip"
+  echo "      unzip -oq JetBrainsMono.zip -d ~/.local/share/fonts/NerdFonts/JetBrainsMono"
+  echo "      fc-cache -f ~/.local/share/fonts"
+  echo "    macOS:                brew install --cask font-jetbrains-mono-nerd-font"
 fi
 
 # ─── 2. Fontconfig registration ─────────────────────────────────────────────
@@ -63,17 +72,26 @@ if command -v gsettings &>/dev/null; then
   if [ -n "$profile" ]; then
     term_font=$(gsettings get org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ font 2>/dev/null | tr -d "'" || true)
     use_sys=$(gsettings get org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ use-system-font 2>/dev/null || true)
-    if echo "$term_font" | grep -qi "nerd"; then
+    schema="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/"
+    if echo "$term_font" | grep -qi "nerd font mono"; then
       check "GNOME Terminal font: $term_font" "ok"
+    elif echo "$term_font" | grep -qi "nerd font"; then
+      check "GNOME Terminal font is non-Mono variant: $term_font" "fail"
+      echo "    The proportional variant causes boxes for some glyphs. Use the Mono variant:"
+      echo "      gsettings set $schema font '$NF_TERM 12'"
+      echo "      gnome-terminal --quit 2>/dev/null; (gnome-terminal &)   # restart server"
     elif [ "$use_sys" = "true" ]; then
       sys_mono=$(fc-match Monospace 2>/dev/null | cut -d: -f1 | xargs || echo "unknown")
       check "GNOME Terminal uses system font → $sys_mono" "fail"
       echo "    Fix:"
-      echo "      gsettings set org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ use-system-font false"
-      echo "      gsettings set org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ font '$NF 12'"
+      echo "      gsettings set $schema use-system-font false"
+      echo "      gsettings set $schema font '$NF_TERM 12'"
+      echo "      gnome-terminal --quit 2>/dev/null; (gnome-terminal &)   # restart server"
     else
       check "GNOME Terminal font: $term_font" "fail"
-      echo "    Fix: gsettings set org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ font '$NF 12'"
+      echo "    Fix:"
+      echo "      gsettings set $schema font '$NF_TERM 12'"
+      echo "      gnome-terminal --quit 2>/dev/null; (gnome-terminal &)   # restart server"
     fi
   fi
 elif [ -f ~/.config/alacritty/alacritty.toml ]; then
@@ -81,14 +99,14 @@ elif [ -f ~/.config/alacritty/alacritty.toml ]; then
     check "Alacritty configured with Nerd Font" "ok"
   else
     check "Alacritty not using a Nerd Font" "fail"
-    echo "    Fix: add 'family = \"$NF\"' to [font.normal] in alacritty.toml"
+    echo "    Fix: add 'family = \"$NF_TERM\"' to [font.normal] in alacritty.toml"
   fi
 elif [ -f ~/.config/kitty/kitty.conf ]; then
   if grep -qi "JetBrains\|Nerd" ~/.config/kitty/kitty.conf; then
     check "Kitty configured with Nerd Font" "ok"
   else
     check "Kitty not using a Nerd Font" "fail"
-    echo "    Fix: add 'font_family $NF' to kitty.conf"
+    echo "    Fix: add 'font_family $NF_TERM' to kitty.conf"
   fi
 else
   warn "Can't auto-detect terminal — verify manually that your terminal is set to a Nerd Font"
