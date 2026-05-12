@@ -282,10 +282,10 @@ install_rust_toolchain() {
 # ─── Nerd Font ───────────────────────────────────────────────────────────────
 # nvim-tree, telescope, lualine, and which-key render icons from the
 # private-use Unicode area. Without a Nerd Font installed in the terminal,
-# these show as boxes with hex codepoints. Installs JetBrainsMono Nerd Font
+# these show as boxes with hex codepoints. Installs RobotoMono Nerd Font
 # user-level (no sudo) to ~/.local/share/fonts/NerdFonts.
 NERD_FONT_VERSION="v3.4.0"
-NERD_FONT_FAMILY="JetBrainsMono"
+NERD_FONT_FAMILY="RobotoMono"
 NERD_FONT_DIR="$HOME/.local/share/fonts/NerdFonts"
 
 # Authoritative check: does fontconfig resolve "<family> Nerd Font" to a file

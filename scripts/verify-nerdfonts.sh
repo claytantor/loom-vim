@@ -21,7 +21,7 @@ warn() {
   printf "  \033[1;33m⚠\033[0m %s\n" "$1"
 }
 
-NF="JetBrainsMono Nerd Font"
+NF="RobotoMono Nerd Font"
 # Terminals must use the "Mono" suffix variant — the proportional variant
 # triggers per-codepoint fontconfig substitution that produces tofu/boxes
 # for some private-use glyphs even though the glyph exists in the font.
@@ -44,9 +44,9 @@ else
   check "Nerd Font .ttf files found" "fail"
   echo "    Easiest fix (Linux):  bash <(curl -fsSL ${BOOTSTRAP_URL})"
   echo "    Manual (any OS):"
-  echo "      mkdir -p ~/.local/share/fonts/NerdFonts/JetBrainsMono && cd /tmp"
-  echo "      curl -fLO https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/JetBrainsMono.zip"
-  echo "      unzip -oq JetBrainsMono.zip -d ~/.local/share/fonts/NerdFonts/JetBrainsMono"
+  echo "      mkdir -p ~/.local/share/fonts/NerdFonts/RobotoMono && cd /tmp"
+  echo "      curl -fLO https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/RobotoMono.zip"
+  echo "      unzip -oq RobotoMono.zip -d ~/.local/share/fonts/NerdFonts/RobotoMono"
   echo "      fc-cache -f ~/.local/share/fonts"
   echo "    macOS:                brew install --cask font-jetbrains-mono-nerd-font"
 fi

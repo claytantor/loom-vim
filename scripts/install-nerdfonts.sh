@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install JetBrainsMono Nerd Font user-level and (where applicable) point
+# Install RobotoMono Nerd Font user-level and (where applicable) point
 # the active terminal emulator at the Mono variant, then restart its server
 # so a fresh window does a fresh font lookup.
 #
@@ -12,21 +12,21 @@
 set -euo pipefail
 
 NERD_FONT_VERSION="v3.4.0"
-NERD_FONT_FAMILY="JetBrainsMono"
+NERD_FONT_FAMILY="RobotoMono"
 NERD_FONT_DIR="$HOME/.local/share/fonts/NerdFonts"
 CONFIGURE_TERMINAL=true
 
 for arg in "$@"; do
   case "$arg" in
-    --family) shift; NERD_FONT_FAMILY="${1:-JetBrainsMono}"; shift ;;
+    --family) shift; NERD_FONT_FAMILY="${1:-RobotoMono}"; shift ;;
     --no-terminal-config) CONFIGURE_TERMINAL=false ;;
     --help|-h)
       cat <<EOF
 Install a Nerd Font and configure your terminal to use it.
 
 Options:
-  --family <Name>          Nerd Font family to install (default: JetBrainsMono)
-                           Other examples: FiraCode, Hack, Iosevka, Meslo
+  --family <Name>          Nerd Font family to install (default: RobotoMono)
+                           Other examples: JetBrainsMono, FiraCode, Hack, Iosevka, Meslo
   --no-terminal-config     Install fonts but don't touch terminal settings
 EOF
       exit 0
