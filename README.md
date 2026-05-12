@@ -4,18 +4,25 @@ A set of configs to turn Neovim into a remote IDE.
 
 ## Quick Install
 
+**Start from scratch on a fresh Linux box** (installs latest Neovim + system deps, then the config):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/claytantor/loom-vim/main/bootstrap.sh | bash
+```
+
+Works on Debian/Ubuntu, Fedora/RHEL/CentOS, Arch, openSUSE, and Alpine. Uses `sudo` for package installs. Pass `--nightly` to install Neovim nightly + `tree-sitter-cli` instead of stable.
+
+**Already have Neovim ≥ 0.11** (install just the loom-vim config):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/claytantor/loom-vim/main/install.sh | bash
 ```
 
-Or with options:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/claytantor/loom-vim/main/install.sh) [--dry-run] [--no-backup]
-```
+Options (accepted by both scripts):
 
 - `--dry-run` — Print what would be done without making changes
 - `--no-backup` — Skip backing up an existing `~/.config/nvim`
+- `--nightly` — *(bootstrap.sh only)* install Neovim nightly instead of stable
 
 ## System Dependencies
 
