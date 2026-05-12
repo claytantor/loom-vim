@@ -195,6 +195,52 @@ cargo_install_tree_sitter() {
   cargo install tree-sitter-cli
 }
 
+# ─── Nerd Font ───────────────────────────────────────────────────────────────
+# nvim-tree, telescope, lualine, and which-key render icons from the
+# private-use Unicode area. Without a Nerd Font installed in the terminal,
+# these show as boxes with hex codepoints. Installs JetBrainsMono Nerd Font
+# user-level (no sudo) to ~/.local/share/fonts/NerdFonts.
+NERD_FONT_VERSION="v3.4.0"
+NERD_FONT_FAMILY="JetBrainsMono"
+NERD_FONT_DIR="$HOME/.local/share/fonts/NerdFonts"
+
+install_nerd_font() {
+  if fc-list 2>/dev/null | grep -qi 'nerd font'; then
+    success "Nerd Font already installed ($(fc-list | grep -i 'nerd font' | wc -l) variants)"
+    return 0
+  fi
+  if ! command -v fc-cache &>/dev/null; then
+    warn "fontconfig (fc-cache) not found — skipping Nerd Font install"
+    warn "Install fontconfig then re-run bootstrap, or grab a Nerd Font manually:"
+    warn "  https://www.nerdfonts.com/font-downloads"
+    return 0
+  fi
+  if ! command -v unzip &>/dev/null; then
+    warn "unzip not found — skipping Nerd Font install"
+    return 0
+  fi
+
+  info "Installing ${NERD_FONT_FAMILY} Nerd Font (${NERD_FONT_VERSION}) to ${NERD_FONT_DIR}..."
+  local url="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_FONT_VERSION}/${NERD_FONT_FAMILY}.zip"
+  local tmp
+  tmp=$(mktemp -d)
+  if ! curl -fL --progress-bar -o "$tmp/font.zip" "$url"; then
+    warn "Nerd Font download failed — get one manually from https://www.nerdfonts.com"
+    rm -rf "$tmp"
+    return 0
+  fi
+  mkdir -p "$NERD_FONT_DIR/$NERD_FONT_FAMILY"
+  unzip -oq "$tmp/font.zip" -d "$NERD_FONT_DIR/$NERD_FONT_FAMILY"
+  rm -rf "$tmp"
+  fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
+  success "Nerd Font installed: $(fc-list | grep -ci 'jetbrainsmono nerd') variants"
+
+  echo ""
+  printf "${YELLOW}[!]${NC}  Set your terminal emulator's font to a 'Nerd Font' variant\n"
+  printf "${YELLOW}[!]${NC}  (e.g. 'JetBrainsMono Nerd Font') for icons to render correctly.\n"
+  echo ""
+}
+
 # Does the currently-installed nvim need tree-sitter CLI? (true for >= 0.12)
 nvim_needs_tree_sitter() {
   local nvim_cmd
@@ -312,6 +358,8 @@ main() {
   else
     info "Neovim < 0.12 — skipping tree-sitter CLI (master branch ships prebuilt parsers)"
   fi
+
+  install_nerd_font
 
   run_loom_install
 }
