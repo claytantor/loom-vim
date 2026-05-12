@@ -1,0 +1,3 @@
+-- Plugin manager: no spec needed here — lazy.nvim is bootstrapped in init.lua
+-- This file returns the plugin spec list that lazy.setup("plugins") will discover.
+-- All specs are in individual files under lua/plugins/; lazy auto-loads them.

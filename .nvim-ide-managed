@@ -1,0 +1,2 @@
+# This file marks the nvim config as managed by loom-vim.
+# If present, the installer skips backup and overwrites in-place.

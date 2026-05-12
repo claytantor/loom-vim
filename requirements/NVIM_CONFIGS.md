@@ -2,7 +2,7 @@
 
 **Version:** 1.0  
 **Author:** Clay (DeepOrb Labs)  
-**Target:** Agentic installer — single-line bootstrap from GitHub  
+**Target:** Agentic installer — single-line bootstrap from GitHub (`claytantor/loom-vim`)
 **Neovim Minimum:** 0.11 stable (or 0.12 nightly for treesitter `main` branch)
 
 ---
@@ -142,7 +142,12 @@ nvim --version   →  0.12.x  →  use branch = "main" (or omit for default)
 
 **Leader key:** `<Space>`
 
-All keybindings must be set in `~/.config/nvim/lua/core/keymaps.lua` and registered with which-key for cheatsheet display.
+Keybindings are split by ownership so lazy.nvim can defer plugin loading:
+
+- **Plugin-agnostic bindings** (QoL, buffers, windows, save, escape) live in `~/.config/nvim/lua/core/keymaps.lua`.
+- **Plugin-specific bindings** live in each plugin's `keys = { … }` table in its spec under `lua/plugins/`. This lets lazy.nvim load the plugin on first key press instead of at startup.
+
+All bindings carry a `desc` field so which-key picks them up automatically for cheatsheet display.
 
 ### 3.1 Core Navigation
 
@@ -300,12 +305,12 @@ The installer script must check for and install (or warn about) the following:
 The installer must be invocable as:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<USER>/<REPO>/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/claytantor/loom-vim/main/install.sh | bash
 ```
 
 Or with options:
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/<USER>/<REPO>/main/install.sh) [--dry-run] [--no-backup]
+bash <(curl -fsSL https://raw.githubusercontent.com/claytantor/loom-vim/main/install.sh) [--dry-run] [--no-backup]
 ```
 
 ### 6.2 Installer Script Behavior (ordered steps)
@@ -327,7 +332,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/<USER>/<REPO>/main/install.s
 set -euo pipefail
 
 # --- Config ---
-REPO_RAW="https://raw.githubusercontent.com/<USER>/<REPO>/main"
+REPO_RAW="https://raw.githubusercontent.com/claytantor/loom-vim/main"
 NVIM_CONFIG="$HOME/.config/nvim"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
@@ -362,14 +367,16 @@ Running the installer twice on an already-configured system must be safe. If `~/
 
 ---
 
-## 7. Hosting Requirements
+## 7. Repository Layout
 
-The agent must create a **GitHub repository** with the following layout:
+The **[claytantor/loom-vim](https://github.com/claytantor/loom-vim)** repository must contain the following layout:
 
 ```
-<REPO>/
+loom-vim/
 ├── install.sh              # Single-line installer (§6)
 ├── README.md               # Usage, screenshots, keybindings table
+├── requirements/
+│   └── NVIM_CONFIGS.md      # This requirements document
 ├── nvim/                   # Config source files (mirrored by installer)
 │   ├── init.lua
 │   └── lua/
@@ -380,7 +387,8 @@ The agent must create a **GitHub repository** with the following layout:
 
 - The `install.sh` must either embed file contents directly OR `curl` each file from `nvim/` in the repo
 - All files must be on the `main` branch
-- The repo should be public for the one-liner to work without auth
+- The repo must be **public** for the one-liner to work without auth
+- The installer URL is: `https://raw.githubusercontent.com/claytantor/loom-vim/main/install.sh`
 
 ---
 
