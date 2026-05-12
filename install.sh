@@ -586,7 +586,86 @@ verify_install() {
   fi
 }
 
-# ─── 8. Print Summary ───────────────────────────────────────────────────────
+# ─── 8. Verify Nerd Fonts ───────────────────────────────────────────────────────
+verify_nerdfonts() {
+  info "Checking Nerd Fonts..."
+  if $DRY_RUN; then
+    printf "${BOLD}[DRY]${NC}   Nerd Font verification skipped in dry-run\n"
+    return 0
+  fi
+
+  # 8a. Font files on disk
+  local font_files
+  font_files=$(find ~/.local/share/fonts /usr/share/fonts -iname '*nerd*' -name '*.ttf' 2>/dev/null || true)
+  if [ -n "$font_files" ]; then
+    success "Nerd Font files found on disk"
+  else
+    warn "No Nerd Font .ttf files found — icons will not render correctly"
+    warn "Install: brew install --cask font-jetbrains-mono-nerd-font  (macOS)"
+    warn "        or run: bash <(curl -fsSL $REPO_RAW/scripts/verify-nerdfonts.sh)"
+  fi
+
+  # 8b. Fontconfig
+  local _fc_tmp
+  _fc_tmp=$(mktemp)
+  fc-list > "$_fc_tmp" 2>/dev/null
+  if grep -qi "nerd font" "$_fc_tmp"; then
+    local family
+    family=$(grep -i "nerd font" "$_fc_tmp" | head -1 | sed 's/.*: //' | cut -d, -f1 | xargs)
+    success "Fontconfig registered: $family"
+  else
+    warn "Fontconfig has no Nerd Font entries — run 'fc-cache -fv'"
+  fi
+  rm -f "$_fc_tmp"
+
+  # 8c. Terminal font (best-effort detection)
+  local term_ok=false
+  if command -v gsettings &>/dev/null; then
+    local profile
+    profile=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'" || true)
+    if [ -n "$profile" ]; then
+      local term_font use_sys
+      term_font=$(gsettings get org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ font 2>/dev/null | tr -d "'" || true)
+      use_sys=$(gsettings get org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ use-system-font 2>/dev/null || true)
+      if echo "$term_font" | grep -qi "nerd"; then
+        success "GNOME Terminal font: $term_font"
+        term_ok=true
+      elif [ "$use_sys" = "true" ]; then
+        local sys_mono
+        sys_mono=$(fc-match Monospace 2>/dev/null | cut -d: -f1 | xargs || echo "unknown")
+        warn "GNOME Terminal uses system font → $sys_mono (not a Nerd Font)"
+        warn "Fix: gsettings set org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ use-system-font false"
+        warn "     gsettings set org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile}/ font 'JetBrainsMono Nerd Font 12'"
+      else
+        warn "GNOME Terminal font: $term_font (not a Nerd Font)"
+      fi
+    fi
+  elif [ -f ~/.config/alacritty/alacritty.toml ]; then
+    if grep -qi "nerd\|JetBrains" ~/.config/alacritty/alacritty.toml; then
+      success "Alacritty configured with Nerd Font"
+      term_ok=true
+    else
+      warn "Alacritty is not using a Nerd Font"
+    fi
+  elif [ -f ~/.config/kitty/kitty.conf ]; then
+    if grep -qi "nerd\|JetBrains" ~/.config/kitty/kitty.conf; then
+      success "Kitty configured with Nerd Font"
+      term_ok=true
+    else
+      warn "Kitty is not using a Nerd Font"
+    fi
+  fi
+
+  # 8d. Visual rendering hint
+  if [ "$term_ok" = true ]; then
+    success "Nerd Font icons should render correctly"
+  else
+    warn "Nerd Font icons may not render — verify visually with:"
+    warn "  bash <(curl -fsSL $REPO_RAW/scripts/verify-nerdfonts.sh)"
+  fi
+}
+
+# ─── 9. Print Summary ───────────────────────────────────────────────────────
 print_summary() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -626,6 +705,7 @@ main() {
   bootstrap_lazy
   install_parsers
   verify_install
+  verify_nerdfonts
   print_summary
 }
 

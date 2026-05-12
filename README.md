@@ -40,6 +40,16 @@ The installer will warn you if any are missing but will not auto-install them.
 
 > **Note:** A C compiler is only required for Neovim 0.12+ (treesitter `main` branch). Neovim 0.11 uses the `master` branch with pre-compiled parsers.
 
+### Verify Nerd Fonts
+
+After installing a Nerd Font, verify your terminal is configured correctly:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/claytantor/loom-vim/main/scripts/verify-nerdfonts.sh)
+```
+
+This checks font files, fontconfig registration, and terminal configuration. The installer also runs this check automatically.
+
 ## Keybindings
 
 **Leader key:** `<Space>`
