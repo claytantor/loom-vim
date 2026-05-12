@@ -212,7 +212,21 @@ opt.colorcolumn = "120"
 opt.splitbelow = true
 opt.splitright = true
 opt.mouse = "a"
-opt.clipboard = "unnamedplus"
+if vim.env.SSH_TTY ~= nil or vim.env.SSH_CONNECTION ~= nil or vim.env.DISPLAY == nil or vim.env.DISPLAY == "" then
+  vim.g.clipboard = {
+    name = 'OSC 52',
+    copy = {
+      ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+      ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+    },
+    paste = {
+      ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+      ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+    },
+  }
+else
+  opt.clipboard = "unnamedplus"
+end
 opt.ignorecase = true
 opt.smartcase = true
 LUAEOF
@@ -270,12 +284,29 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- Auto-open nvim-tree when nvim is launched with a directory argument
+-- Auto-open nvim-tree on startup; close the empty buffer when no file is given
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("NvimTreeDir", { clear = true }),
   callback = function(data)
-    if data.file and vim.fn.isdirectory(data.file) == 1 then
-      vim.cmd("NvimTreeOpen")
+    local is_dir = data.file and vim.fn.isdirectory(data.file) == 1
+    local is_no_args = vim.fn.argc() == 0
+
+    if not is_dir and not is_no_args then
+      return
+    end
+
+    require("nvim-tree.api").tree.open()
+
+    if is_no_args then
+      for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_buf_get_name(buf) == ""
+          and vim.api.nvim_buf_line_count(buf) == 1
+          and vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == ""
+          and vim.bo[buf].filetype ~= "NvimTree" then
+          pcall(vim.api.nvim_win_close, win, false)
+        end
+      end
     end
   end,
 })
@@ -350,6 +381,28 @@ return {
       { "<Leader>ef", "<Cmd>NvimTreeFocus<CR>", desc = "Focus file tree" },
       { "<Leader>er", "<Cmd>NvimTreeRefresh<CR>", desc = "Refresh file tree" },
     },
+    config = function(_, opts)
+      opts.on_attach = function(bufnr)
+        local api = require('nvim-tree.api')
+        api.config.mappings.default_on_attach(bufnr)
+        vim.keymap.set('n', 'n', function()
+          local node = api.tree.get_node_under_cursor()
+          if node and node.type == 'file' then
+            local path = vim.fn.shellescape(node.absolute_path)
+            local cur_win = vim.api.nvim_get_current_win()
+            vim.cmd('wincmd l')
+            if vim.api.nvim_get_current_win() == cur_win then
+              vim.cmd('vsplit | terminal nano ' .. path)
+              vim.cmd('wincmd h | vertical resize 32 | wincmd l')
+            else
+              vim.cmd('split | terminal nano ' .. path)
+            end
+            vim.cmd('startinsert')
+          end
+        end, { buffer = bufnr, noremap = true, silent = true, desc = 'Open in nano' })
+      end
+      require('nvim-tree').setup(opts)
+    end,
     opts = {
       disable_netrw = true,
       hijack_netrw = true,

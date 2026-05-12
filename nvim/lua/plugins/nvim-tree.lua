@@ -11,16 +11,19 @@ return {
       opts.on_attach = function(bufnr)
         local api = require('nvim-tree.api')
         api.config.mappings.default_on_attach(bufnr)
-        vim.keymap.set('n', '<Leader>vi', function()
-          local node = api.tree.get_node_under_cursor()
-          if node and node.type == 'file' then
-            vim.cmd('split | terminal vi ' .. vim.fn.shellescape(node.absolute_path))
-          end
-        end, { buffer = bufnr, noremap = true, silent = true, desc = 'Open in vi' })
         vim.keymap.set('n', 'n', function()
           local node = api.tree.get_node_under_cursor()
           if node and node.type == 'file' then
-            vim.cmd('split | terminal nano ' .. vim.fn.shellescape(node.absolute_path))
+            local path = vim.fn.shellescape(node.absolute_path)
+            local cur_win = vim.api.nvim_get_current_win()
+            vim.cmd('wincmd l')
+            if vim.api.nvim_get_current_win() == cur_win then
+              vim.cmd('vsplit | terminal nano ' .. path)
+              vim.cmd('wincmd h | vertical resize 32 | wincmd l')
+            else
+              vim.cmd('split | terminal nano ' .. path)
+            end
+            vim.cmd('startinsert')
           end
         end, { buffer = bufnr, noremap = true, silent = true, desc = 'Open in nano' })
       end
