@@ -98,15 +98,16 @@ install_font() {
   local url="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_FONT_VERSION}/${NERD_FONT_FAMILY}.zip"
   local tmp
   tmp=$(mktemp -d)
-  trap 'rm -rf "$tmp"' EXIT
 
   if ! curl -fL --progress-bar -o "$tmp/font.zip" "$url"; then
     error "Download failed: $url"
     error "Check that the family name is right — list at https://www.nerdfonts.com/font-downloads"
+    rm -rf "$tmp"
     exit 1
   fi
   mkdir -p "$NERD_FONT_DIR/$NERD_FONT_FAMILY"
   unzip -oq "$tmp/font.zip" -d "$NERD_FONT_DIR/$NERD_FONT_FAMILY"
+  rm -rf "$tmp"
   fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
 
   if nerd_font_resolves; then
