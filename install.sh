@@ -562,7 +562,12 @@ LUAEOF
     success "Treesitter parsers installed"
   else
     warn "Treesitter parser install reported issues — see $log"
-    if grep -qE "ENOENT.*tree-sitter|tree-sitter.*not found" "$log" 2>/dev/null; then
+    if grep -qE "GLIBC_[0-9]" "$log" 2>/dev/null; then
+      warn "Root cause: the prebuilt \`tree-sitter\` binary needs a newer glibc than"
+      warn "this system has. Build from source instead:"
+      warn "  bootstrap.sh handles this automatically (cargo install fallback)."
+      warn "  Manual: cargo install tree-sitter-cli --locked   (needs Rust)"
+    elif grep -qE "ENOENT.*tree-sitter|tree-sitter.*not found" "$log" 2>/dev/null; then
       warn "Root cause: \`tree-sitter\` CLI is missing or too old (need >= 0.26.1)."
       warn "Install via bootstrap.sh, or grab the binary from:"
       warn "  https://github.com/tree-sitter/tree-sitter/releases/latest"

@@ -144,6 +144,36 @@ install_packages() {
 # Required by nvim-treesitter's `main` branch (Neovim 0.12+).
 # Most distro packages are too old (e.g. Debian ships 0.20.x; we need >= 0.26.1),
 # so prefer the official GitHub release binary and fall back to cargo.
+# Detect the system's glibc version. Returns empty on non-glibc systems (musl).
+glibc_version() {
+  if command -v ldd &>/dev/null; then
+    ldd --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+$' | head -n1
+  fi
+}
+
+# Verify that a candidate tree-sitter binary actually runs on this system.
+# The official Linux releases are dynamically linked against modern glibc, so
+# on older distros (Ubuntu 22.04 / Debian 12 / RHEL 9) the prebuilt binary
+# fails at load time with `GLIBC_2.XX not found`. Catch that before installing.
+tree_sitter_binary_runs() {
+  local bin="$1"
+  local errfile
+  errfile=$(mktemp)
+  if "$bin" --version >/dev/null 2>"$errfile"; then
+    rm -f "$errfile"
+    return 0
+  fi
+  if grep -q 'GLIBC' "$errfile"; then
+    warn "Prebuilt tree-sitter requires a newer glibc than this system has:"
+    warn "  $(grep GLIBC "$errfile" | head -n1)"
+    warn "  system glibc: $(glibc_version || echo unknown)"
+  else
+    warn "Prebuilt tree-sitter failed to run: $(head -n1 "$errfile")"
+  fi
+  rm -f "$errfile"
+  return 1
+}
+
 install_tree_sitter_cli() {
   if command -v tree-sitter &>/dev/null; then
     local current
@@ -161,8 +191,8 @@ install_tree_sitter_cli() {
     x86_64|amd64)  asset="tree-sitter-linux-x64.gz" ;;
     aarch64|arm64) asset="tree-sitter-linux-arm64.gz" ;;
     *)
-      warn "No tree-sitter prebuilt binary for ${arch}; trying cargo"
-      cargo_install_tree_sitter
+      warn "No tree-sitter prebuilt binary for ${arch}; building from source"
+      build_tree_sitter_from_source
       return $?
       ;;
   esac
@@ -172,27 +202,81 @@ install_tree_sitter_cli() {
   tmp=$(mktemp -d)
   local url="https://github.com/tree-sitter/tree-sitter/releases/latest/download/${asset}"
   if ! curl -fL --progress-bar -o "$tmp/ts.gz" "$url"; then
-    warn "GitHub download failed — falling back to cargo"
+    warn "GitHub download failed — falling back to source build"
     rm -rf "$tmp"
-    cargo_install_tree_sitter
+    build_tree_sitter_from_source
     return $?
   fi
   gunzip -f "$tmp/ts.gz"
   chmod +x "$tmp/ts"
+
+  # Make sure the binary actually runs on this system before installing it.
+  if ! tree_sitter_binary_runs "$tmp/ts"; then
+    warn "Falling back to a source build (cargo install)."
+    rm -rf "$tmp"
+    build_tree_sitter_from_source
+    return $?
+  fi
+
   $SUDO install -m 0755 "$tmp/ts" /usr/local/bin/tree-sitter
   rm -rf "$tmp"
   success "tree-sitter CLI installed: $(tree-sitter --version | head -n1)"
 }
 
-cargo_install_tree_sitter() {
+# Build tree-sitter-cli locally with cargo. Slower (~5 min on a typical
+# laptop) but always works because it links against the local glibc.
+# If cargo is missing, try to install it via the distro first, then rustup
+# as a last resort.
+build_tree_sitter_from_source() {
   if ! command -v cargo &>/dev/null; then
-    warn "cargo is not installed; skipping tree-sitter CLI."
-    warn "Treesitter parsers won't compile until you install it. Options:"
-    warn "  1. rustup + cargo install tree-sitter-cli"
-    warn "  2. Download from https://github.com/tree-sitter/tree-sitter/releases"
-    return 1
+    info "cargo not found — trying to install Rust toolchain"
+    if ! install_rust_toolchain; then
+      error "Cannot build tree-sitter without a Rust toolchain."
+      error "Install rustup manually (https://rustup.rs) and re-run bootstrap, or"
+      error "download an older tree-sitter release that matches your glibc from:"
+      error "  https://github.com/tree-sitter/tree-sitter/releases"
+      return 1
+    fi
   fi
-  cargo install tree-sitter-cli
+
+  warn "Building tree-sitter-cli from source — this takes several minutes."
+  if cargo install tree-sitter-cli --locked; then
+    # cargo installs to ~/.cargo/bin; symlink into /usr/local/bin so nvim's
+    # parser build step finds it without depending on PATH ordering.
+    if [[ -x "$HOME/.cargo/bin/tree-sitter" ]]; then
+      $SUDO ln -sf "$HOME/.cargo/bin/tree-sitter" /usr/local/bin/tree-sitter
+    fi
+    success "tree-sitter CLI built from source: $(tree-sitter --version | head -n1)"
+    return 0
+  fi
+  error "cargo install tree-sitter-cli failed."
+  return 1
+}
+
+# Best-effort install of a Rust toolchain. Prefers the distro's `cargo`
+# package (faster, no extra moving parts), falls back to rustup.
+install_rust_toolchain() {
+  local installed_via=""
+  if command -v apt-get &>/dev/null; then
+    if $SUDO apt-get install -y cargo rustc 2>/dev/null; then installed_via=apt; fi
+  elif command -v dnf &>/dev/null; then
+    if $SUDO dnf install -y cargo rust 2>/dev/null; then installed_via=dnf; fi
+  elif command -v pacman &>/dev/null; then
+    if $SUDO pacman -Sy --noconfirm --needed rust 2>/dev/null; then installed_via=pacman; fi
+  elif command -v zypper &>/dev/null; then
+    if $SUDO zypper --non-interactive install cargo rust 2>/dev/null; then installed_via=zypper; fi
+  elif command -v apk &>/dev/null; then
+    if $SUDO apk add --no-cache cargo rust 2>/dev/null; then installed_via=apk; fi
+  fi
+
+  if [[ -z "$installed_via" ]]; then
+    info "Distro cargo unavailable — falling back to rustup"
+    curl -fsSL https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --no-modify-path
+    # rustup installs to ~/.cargo/bin which won't be on PATH in this shell
+    export PATH="$HOME/.cargo/bin:$PATH"
+  fi
+
+  command -v cargo &>/dev/null
 }
 
 # ─── Nerd Font ───────────────────────────────────────────────────────────────
