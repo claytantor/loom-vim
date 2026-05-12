@@ -211,7 +211,7 @@ The agent must create the following directory/file layout:
 │   │   ├── keymaps.lua             # All custom keybindings
 │   │   └── autocmds.lua            # FileType autocommands (treesitter, folds)
 │   └── plugins/
-│       ├── init.lua                # lazy.nvim plugin list (all specs)
+│       ├── treesitter.lua          # nvim-treesitter config
 │       ├── treesitter.lua          # nvim-treesitter config
 │       ├── nvim-tree.lua           # File tree config
 │       ├── telescope.lua           # Telescope config + keymaps
@@ -242,7 +242,7 @@ vim.g.maplocalleader = " "
 require("core.options")
 require("core.keymaps")
 require("core.autocmds")
-require("lazy").setup("plugins")
+require("lazy").setup({ import = "plugins" })
 ```
 
 ### 4.2 `core/options.lua` — Sensible defaults

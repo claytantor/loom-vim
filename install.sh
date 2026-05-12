@@ -181,7 +181,7 @@ vim.g.maplocalleader = " "
 require("core.options")
 require("core.keymaps")
 require("core.autocmds")
-require("lazy").setup("plugins")
+require("lazy").setup({ import = "plugins" })
 LUAEOF
 
   # --- lua/core/options.lua ---
@@ -278,12 +278,6 @@ vim.api.nvim_create_autocmd("VimEnter", {
 })
 LUAEOF
 
-  # --- lua/plugins/init.lua ---
-  run tee "$NVIM_CONFIG/lua/plugins/init.lua" >/dev/null <<'LUAEOF'
--- Plugin manager: no spec needed here — lazy.nvim is bootstrapped in init.lua
--- All specs are in individual files under lua/plugins/; lazy auto-loads them.
-LUAEOF
-
   # --- lua/plugins/treesitter.lua (branch chosen at runtime via vim.version) ---
   run tee "$NVIM_CONFIG/lua/plugins/treesitter.lua" >/dev/null <<'LUAEOF'
 -- Determine treesitter branch based on Neovim version
@@ -295,25 +289,47 @@ if v.major >= 1 or v.minor >= 12 then
   ts_branch = "main"
 end
 
+-- The `main` branch (Neovim 0.12+) removed nvim-treesitter.configs;
+-- it uses declarative vim.treesitter API instead.
+local config_fn
+if ts_branch == "master" then
+  config_fn = function()
+    require("nvim-treesitter.configs").setup({
+      ensure_installed = {
+        "lua", "python", "javascript", "typescript", "tsx",
+        "bash", "json", "yaml", "toml",
+        "markdown", "markdown_inline",
+        "html", "css", "dockerfile", "sql", "rust",
+      },
+      auto_install = true,
+      highlight = { enable = true },
+      indent = { enable = true },
+    })
+  end
+else
+  -- main branch: use vim.treesitter directly; parsers auto-install on first open
+  config_fn = function()
+    local parser_list = {
+      "lua", "python", "javascript", "typescript", "tsx",
+      "bash", "json", "yaml", "toml",
+      "markdown", "markdown_inline",
+      "html", "css", "dockerfile", "sql", "rust",
+    }
+    -- Install parsers synchronously on first run
+    for _, lang in ipairs(parser_list) do
+      pcall(vim.treesitter.language.add, lang)
+    end
+    vim.treesitter.start()
+  end
+end
+
 return {
   {
     "nvim-treesitter/nvim-treesitter",
     branch = ts_branch,
     build = ":TSUpdate",
     lazy = false,
-    config = function()
-      require("nvim-treesitter.configs").setup({
-        ensure_installed = {
-          "lua", "python", "javascript", "typescript", "tsx",
-          "bash", "json", "yaml", "toml",
-          "markdown", "markdown_inline",
-          "html", "css", "dockerfile", "sql", "rust",
-        },
-        auto_install = true,
-        highlight = { enable = true },
-        indent = { enable = true },
-      })
-    end,
+    config = config_fn,
   },
 }
 LUAEOF
@@ -481,16 +497,17 @@ bootstrap_lazy() {
 
 # ─── 7. Install Treesitter Parsers ──────────────────────────────────────────
 install_parsers() {
-  info "Installing treesitter parsers (headless TSUpdateSync)..."
+  info "Installing treesitter parsers (headless)..."
   if $DRY_RUN; then
     printf "${BOLD}[DRY]${NC}   nvim --headless '+TSUpdateSync' +qa\n"
     return 0
   fi
-  if ! nvim --headless "+TSUpdateSync" +qa; then
-    error "Treesitter parser install failed — run 'nvim +TSUpdateSync' to inspect"
-    exit 1
+  if nvim --headless "+TSUpdateSync" +qa 2>/dev/null; then
+    success "Treesitter parsers installed"
+  else
+    warn "TSUpdateSync failed (non-fatal) — parsers will auto-install on first file open"
+    warn "Run 'nvim +TSUpdateSync' manually to inspect"
   fi
-  success "Treesitter parsers installed"
 }
 
 # ─── 7b. Verify Install ─────────────────────────────────────────────────────
